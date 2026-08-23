@@ -354,7 +354,25 @@ function countDominoPips(image: ImageData) {
       const componentHeight = maxY - minY + 1;
       const fill = area / (componentWidth * componentHeight);
       const ratio = componentWidth / componentHeight;
-      if (area >= 18 && area <= width * height * .045 && ratio > .52 && ratio < 1.9 && fill > .28 && fill < .95) {
+      const ringRadius = Math.max(componentWidth, componentHeight) * 1.35;
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      let ringPixels = 0;
+      let brightRingPixels = 0;
+      let ringBrightness = 0;
+      for (let ringY = Math.max(1, Math.floor(centerY - ringRadius)); ringY < Math.min(height - 1, Math.ceil(centerY + ringRadius)); ringY += 2) {
+        for (let ringX = Math.max(1, Math.floor(centerX - ringRadius)); ringX < Math.min(width - 1, Math.ceil(centerX + ringRadius)); ringX += 2) {
+          if (ringX >= minX && ringX <= maxX && ringY >= minY && ringY <= maxY) continue;
+          const ringOffset = (ringY * width + ringX) * 4;
+          const brightness = (data[ringOffset] * 0.299) + (data[ringOffset + 1] * 0.587) + (data[ringOffset + 2] * 0.114);
+          ringPixels += 1;
+          ringBrightness += brightness;
+          if (brightness > 140) brightRingPixels += 1;
+        }
+      }
+      const brightRingRatio = ringPixels ? brightRingPixels / ringPixels : 0;
+      const averageRingBrightness = ringPixels ? ringBrightness / ringPixels : 0;
+      if (area >= 30 && area <= width * height * .012 && ratio > .62 && ratio < 1.6 && fill > .48 && fill < .94 && brightRingRatio > .38 && averageRingBrightness > 125) {
         candidates.push({ area, minX, maxX, minY, maxY });
       }
     }
