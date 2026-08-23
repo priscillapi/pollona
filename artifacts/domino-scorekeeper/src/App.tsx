@@ -418,7 +418,10 @@ function CameraFlow({ game, points, setPoints, winner, setWinner, submit, error 
 
   const capture = () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError('The camera is still starting. Wait a moment, then try Capture again.');
+      return;
+    }
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -445,7 +448,8 @@ function CameraFlow({ game, points, setPoints, winner, setWinner, submit, error 
   return <div style={{ marginTop: '1.2rem' }}>
     <div style={{ borderRadius: '1rem', overflow: 'hidden', background: 'hsl(var(--sidebar))', color: 'hsl(var(--sidebar-foreground))', border: '1px dashed hsl(var(--accent) / .55)' }}>
       {photo ? <div style={{ position: 'relative' }}><img src={photo} alt="Captured domino" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover' }} /><button className="btn btn-quiet btn-small" onClick={() => { setPhoto(''); setDetectedPips(null); setPoints(''); }} style={{ position: 'absolute', top: 10, right: 10, background: 'hsl(var(--sidebar) / .88)', color: 'hsl(var(--sidebar-foreground))' }} data-testid="button-retake-camera"><RotateCcw size={15} /> Retake</button></div> : <div style={{ position: 'relative', minHeight: 205, display: 'grid', placeItems: 'center', padding: '1rem' }}>
-        {cameraActive ? <><video ref={videoRef} muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /><div style={{ position: 'absolute', width: '62%', height: '76%', border: '2px solid hsl(var(--accent))', borderRadius: '.85rem', boxShadow: '0 0 0 999px hsl(var(--sidebar) / .3)' }} /><button className="btn btn-primary" onClick={capture} style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', minWidth: 150 }} data-testid="button-capture-camera"><Camera size={17} /> Capture</button></> : <div style={{ textAlign: 'center' }}><Camera size={28} color="hsl(var(--accent))" /><p style={{ fontWeight: 700, marginTop: '.5rem' }}>Scan the scoring tiles</p><p style={{ fontSize: '.75rem', color: 'hsl(var(--sidebar-foreground) / .68)', margin: '.3rem auto .9rem', maxWidth: 270 }}>Apple devices use the rear camera. Lay the scoring dominoes flat, apart, and inside the guide on a clear, well-lit surface.</p><button className="btn btn-primary" onClick={startCamera} data-testid="button-start-camera"><Camera size={17} /> Open camera</button></div>}
+        <video ref={videoRef} muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: cameraActive ? 'block' : 'none' }} />
+        {cameraActive ? <><div style={{ position: 'absolute', width: '62%', height: '76%', border: '2px solid hsl(var(--accent))', borderRadius: '.85rem', boxShadow: '0 0 0 999px hsl(var(--sidebar) / .3)' }} /><button className="btn btn-primary" onClick={capture} style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', minWidth: 150 }} data-testid="button-capture-camera"><Camera size={17} /> Capture</button></> : <div style={{ textAlign: 'center' }}><Camera size={28} color="hsl(var(--accent))" /><p style={{ fontWeight: 700, marginTop: '.5rem' }}>Scan the scoring tiles</p><p style={{ fontSize: '.75rem', color: 'hsl(var(--sidebar-foreground) / .68)', margin: '.3rem auto .9rem', maxWidth: 270 }}>Apple devices use the rear camera. Lay the scoring dominoes flat, apart, and inside the guide on a clear, well-lit surface.</p><button className="btn btn-primary" onClick={startCamera} data-testid="button-start-camera"><Camera size={17} /> Open camera</button></div>}
       </div>}
     </div>
     <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(event) => { const file = event.target.files?.[0]; if (file) readPhoto(file); }} style={{ display: 'none' }} data-testid="input-camera-photo" />
