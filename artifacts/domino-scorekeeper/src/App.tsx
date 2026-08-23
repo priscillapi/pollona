@@ -326,7 +326,7 @@ function countDominoPips(image: ImageData) {
   const pixelIsDark = (x: number, y: number) => {
     const offset = (y * width + x) * 4;
     const brightness = (data[offset] * 0.299) + (data[offset + 1] * 0.587) + (data[offset + 2] * 0.114);
-    return brightness < 105;
+    return brightness < 70;
   };
 
   for (let y = 1; y < height - 1; y += 1) {
@@ -354,7 +354,7 @@ function countDominoPips(image: ImageData) {
       const componentHeight = maxY - minY + 1;
       const fill = area / (componentWidth * componentHeight);
       const ratio = componentWidth / componentHeight;
-      const ringRadius = Math.max(componentWidth, componentHeight) * 1.35;
+      const ringRadius = Math.max(componentWidth, componentHeight) * 1.1;
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
       let ringPixels = 0;
@@ -372,7 +372,9 @@ function countDominoPips(image: ImageData) {
       }
       const brightRingRatio = ringPixels ? brightRingPixels / ringPixels : 0;
       const averageRingBrightness = ringPixels ? ringBrightness / ringPixels : 0;
-      if (area >= 30 && area <= width * height * .012 && ratio > .62 && ratio < 1.6 && fill > .48 && fill < .94 && brightRingRatio > .38 && averageRingBrightness > 125) {
+      const normalPip = brightRingRatio > .38 && averageRingBrightness > 125;
+      const seamSafePip = brightRingRatio > .16 && ratio > .72 && ratio < 1.4 && fill > .62 && area >= 55;
+      if (area >= 30 && area <= width * height * .012 && ratio > .62 && ratio < 1.6 && fill > .48 && fill < .94 && (normalPip || seamSafePip)) {
         candidates.push({ area, minX, maxX, minY, maxY });
       }
     }
