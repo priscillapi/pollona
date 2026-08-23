@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Domino Scorekeeper"
+description = "A mobile-first domino scorekeeper for starting games with four players, recording round scores and ties, tracking the race to 100 points, and reviewing past games."
+version = "1.0.0"
+id = "artifacts/domino-scorekeeper"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23686
+
+[services.development]
+run = "pnpm --filter @workspace/domino-scorekeeper run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/domino-scorekeeper", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/domino-scorekeeper/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23686"
+BASE_PATH = "/"
