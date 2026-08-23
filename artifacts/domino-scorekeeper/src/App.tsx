@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, createContext, useContext, useState } from 'react';
+import { type FormEvent, type ReactNode, createContext, useContext, useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -319,8 +319,144 @@ function ManualFlow({ game, points, setPoints, winner, setWinner, submit, error 
   return <div style={{ marginTop: '1.35rem' }}><p className="input-label">Who won the round?</p><div style={{ display: 'grid', gap: '.65rem', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>{game.teams.map((team, index) => <button key={team.name} className="btn" onClick={() => setWinner(index as 0 | 1)} style={{ minHeight: '4.1rem', flexDirection: 'column', alignItems: 'flex-start', padding: '.75rem', background: winner === index ? 'hsl(var(--team-soft))' : 'hsl(var(--muted))', border: winner === index ? '2px solid hsl(var(--team))' : '2px solid transparent', color: 'hsl(var(--foreground))', textAlign: 'left' }} data-testid={`button-winner-${index}`}><span style={{ fontSize: '.78rem', fontWeight: 700 }}>{team.name}</span><span className="muted" style={{ fontSize: '.68rem' }}>{team.players.join(' + ')}</span></button>)}</div><label style={{ display: 'block', marginTop: '1.1rem' }}><span className="input-label">Points won</span><input type="number" min="1" inputMode="numeric" autoFocus className="field mono-font" value={points} onChange={(event) => setPoints(event.target.value)} placeholder="0" data-testid="input-round-points" /></label>{error && <p role="alert" style={{ color: 'hsl(var(--destructive))', fontSize: '.78rem', marginTop: '.5rem', fontWeight: 700 }} data-testid="status-round-error">{error}</p>}<button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} onClick={submit} data-testid="button-save-round"><Check size={18} /> Save round</button></div>;
 }
 
+function countDominoPips(image: ImageData) {
+  const { width, height, data } = image;
+  const visited = new Uint8Array(width * height);
+  const candidates: { area: number; minX: number; maxX: number; minY: number; maxY: number }[] = [];
+  const pixelIsDark = (x: number, y: number) => {
+    const offset = (y * width + x) * 4;
+    const brightness = (data[offset] * 0.299) + (data[offset + 1] * 0.587) + (data[offset + 2] * 0.114);
+    return brightness < 105;
+  };
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      if (visited[index] || !pixelIsDark(x, y)) continue;
+      const queue = [index];
+      visited[index] = 1;
+      let area = 0;
+      let minX = x, maxX = x, minY = y, maxY = y;
+      while (queue.length) {
+        const current = queue.pop()!;
+        const currentX = current % width;
+        const currentY = Math.floor(current / width);
+        area += 1;
+        minX = Math.min(minX, currentX); maxX = Math.max(maxX, currentX);
+        minY = Math.min(minY, currentY); maxY = Math.max(maxY, currentY);
+        for (const [nextX, nextY] of [[currentX - 1, currentY], [currentX + 1, currentY], [currentX, currentY - 1], [currentX, currentY + 1]]) {
+          if (nextX < 1 || nextX >= width - 1 || nextY < 1 || nextY >= height - 1) continue;
+          const next = nextY * width + nextX;
+          if (!visited[next] && pixelIsDark(nextX, nextY)) { visited[next] = 1; queue.push(next); }
+        }
+      }
+      const componentWidth = maxX - minX + 1;
+      const componentHeight = maxY - minY + 1;
+      const fill = area / (componentWidth * componentHeight);
+      const ratio = componentWidth / componentHeight;
+      if (area >= 18 && area <= width * height * .045 && ratio > .52 && ratio < 1.9 && fill > .28 && fill < .95) {
+        candidates.push({ area, minX, maxX, minY, maxY });
+      }
+    }
+  }
+  return Math.min(candidates.length, 12);
+}
+
 function CameraFlow({ game, points, setPoints, winner, setWinner, submit, error }: { game: Game; points: string; setPoints: (value: string) => void; winner: 0 | 1 | null; setWinner: (value: 0 | 1 | null) => void; submit: () => void; error: string }) {
-  return <div style={{ marginTop: '1.2rem' }}><div style={{ minHeight: 150, borderRadius: '1rem', background: 'hsl(var(--sidebar))', color: 'hsl(var(--sidebar-foreground))', padding: '1.2rem', display: 'grid', placeItems: 'center', textAlign: 'center', border: '1px dashed hsl(var(--accent) / .55)' }}><Camera size={28} color="hsl(var(--accent))" /><div><p style={{ fontWeight: 700, marginTop: '.5rem' }}>Camera scoring is coming soon</p><p style={{ fontSize: '.75rem', color: 'hsl(var(--sidebar-foreground) / .65)', marginTop: '.3rem', maxWidth: 250 }}>We won’t guess at your score. For now, capture a photo for your table and confirm the numbers below.</p></div></div><p className="input-label" style={{ marginTop: '1.1rem' }}>Confirm the winning team</p><div style={{ display: 'grid', gap: '.65rem', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>{game.teams.map((team, index) => <button key={team.name} className="btn btn-quiet" onClick={() => setWinner(index as 0 | 1)} style={{ minHeight: '3.1rem', background: winner === index ? 'hsl(var(--team-soft))' : undefined, border: winner === index ? '2px solid hsl(var(--team))' : '2px solid transparent' }} data-testid={`button-camera-winner-${index}`}>{team.name}</button>)}</div><label style={{ display: 'block', marginTop: '1rem' }}><span className="input-label">Confirmed points</span><input type="number" min="1" inputMode="numeric" className="field mono-font" value={points} onChange={(event) => setPoints(event.target.value)} placeholder="0" data-testid="input-camera-points" /></label>{error && <p role="alert" style={{ color: 'hsl(var(--destructive))', fontSize: '.78rem', marginTop: '.5rem', fontWeight: 700 }} data-testid="status-camera-error">{error}</p>}<button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} onClick={submit} data-testid="button-confirm-camera"><Check size={18} /> Confirm score</button></div>;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [photo, setPhoto] = useState('');
+  const [detectedPips, setDetectedPips] = useState<number | null>(null);
+  const [cameraError, setCameraError] = useState('');
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+  };
+
+  useEffect(() => () => stopCamera(), []);
+
+  const startCamera = async () => {
+    setCameraError('');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Live camera access is unavailable here. Use the photo button below instead.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch {
+      setCameraError('Camera access was blocked. Allow camera access in Safari, then try again or choose a photo.');
+    }
+  };
+
+  const analyzeCanvas = (canvas: HTMLCanvasElement) => {
+    const guideX = Math.round(canvas.width * .19);
+    const guideY = Math.round(canvas.height * .12);
+    const guideWidth = Math.round(canvas.width * .62);
+    const guideHeight = Math.round(canvas.height * .76);
+    const maxDimension = 900;
+    const scale = Math.min(1, maxDimension / Math.max(guideWidth, guideHeight));
+    const scanCanvas = document.createElement('canvas');
+    scanCanvas.width = Math.max(1, Math.round(guideWidth * scale));
+    scanCanvas.height = Math.max(1, Math.round(guideHeight * scale));
+    const scanContext = scanCanvas.getContext('2d');
+    if (!scanContext) return;
+    scanContext.drawImage(canvas, guideX, guideY, guideWidth, guideHeight, 0, 0, scanCanvas.width, scanCanvas.height);
+    const result = countDominoPips(scanContext.getImageData(0, 0, scanCanvas.width, scanCanvas.height));
+    setDetectedPips(result);
+    if (result > 0) setPoints(String(result));
+  };
+
+  const capture = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setPhoto(canvas.toDataURL('image/jpeg', .88));
+    analyzeCanvas(canvas);
+    stopCamera();
+  };
+
+  const readPhoto = (file: File) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext('2d')?.drawImage(image, 0, 0);
+      setPhoto(canvas.toDataURL('image/jpeg', .88));
+      analyzeCanvas(canvas);
+      URL.revokeObjectURL(image.src);
+    };
+    image.src = URL.createObjectURL(file);
+  };
+
+  return <div style={{ marginTop: '1.2rem' }}>
+    <div style={{ borderRadius: '1rem', overflow: 'hidden', background: 'hsl(var(--sidebar))', color: 'hsl(var(--sidebar-foreground))', border: '1px dashed hsl(var(--accent) / .55)' }}>
+      {photo ? <div style={{ position: 'relative' }}><img src={photo} alt="Captured domino" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover' }} /><button className="btn btn-quiet btn-small" onClick={() => { setPhoto(''); setDetectedPips(null); setPoints(''); }} style={{ position: 'absolute', top: 10, right: 10, background: 'hsl(var(--sidebar) / .88)', color: 'hsl(var(--sidebar-foreground))' }} data-testid="button-retake-camera"><RotateCcw size={15} /> Retake</button></div> : <div style={{ position: 'relative', minHeight: 205, display: 'grid', placeItems: 'center', padding: '1rem' }}>
+        {cameraActive ? <><video ref={videoRef} muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /><div style={{ position: 'absolute', width: '62%', height: '76%', border: '2px solid hsl(var(--accent))', borderRadius: '.85rem', boxShadow: '0 0 0 999px hsl(var(--sidebar) / .3)' }} /><button className="btn btn-primary" onClick={capture} style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', minWidth: 150 }} data-testid="button-capture-camera"><Camera size={17} /> Capture</button></> : <div style={{ textAlign: 'center' }}><Camera size={28} color="hsl(var(--accent))" /><p style={{ fontWeight: 700, marginTop: '.5rem' }}>Scan one domino</p><p style={{ fontSize: '.75rem', color: 'hsl(var(--sidebar-foreground) / .68)', margin: '.3rem auto .9rem', maxWidth: 270 }}>Apple devices use the rear camera. Place one domino inside the guide on a clear, well-lit surface.</p><button className="btn btn-primary" onClick={startCamera} data-testid="button-start-camera"><Camera size={17} /> Open camera</button></div>}
+      </div>}
+    </div>
+    <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(event) => { const file = event.target.files?.[0]; if (file) readPhoto(file); }} style={{ display: 'none' }} data-testid="input-camera-photo" />
+    {!cameraActive && !photo && <button className="btn btn-outline" onClick={() => fileRef.current?.click()} style={{ width: '100%', marginTop: '.65rem' }} data-testid="button-upload-camera-photo"><Camera size={17} /> Choose a photo instead</button>}
+    {cameraError && <p role="alert" style={{ color: 'hsl(var(--destructive))', fontSize: '.76rem', marginTop: '.55rem', fontWeight: 700 }} data-testid="status-camera-error">{cameraError}</p>}
+    {photo && <div className="card" style={{ marginTop: '.8rem', padding: '.75rem 1rem', background: 'hsl(var(--accent) / .38)' }}><p style={{ fontWeight: 700 }}>{detectedPips ? `${detectedPips} pip${detectedPips === 1 ? '' : 's'} detected` : 'No pips detected yet'}</p><p className="muted" style={{ fontSize: '.72rem', marginTop: '.2rem' }}>Check the count below and correct it if lighting or angle affected the scan.</p></div>}
+    <p className="input-label" style={{ marginTop: '1.1rem' }}>Confirm the winning team</p><div style={{ display: 'grid', gap: '.65rem', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>{game.teams.map((team, index) => <button key={team.name} className="btn btn-quiet" onClick={() => setWinner(index as 0 | 1)} style={{ minHeight: '3.1rem', background: winner === index ? 'hsl(var(--team-soft))' : undefined, border: winner === index ? '2px solid hsl(var(--team))' : '2px solid transparent' }} data-testid={`button-camera-winner-${index}`}>{team.name}</button>)}</div>
+    <label style={{ display: 'block', marginTop: '1rem' }}><span className="input-label">Confirmed points</span><input type="number" min="1" inputMode="numeric" className="field mono-font" value={points} onChange={(event) => setPoints(event.target.value)} placeholder="0" data-testid="input-camera-points" /></label>
+    {error && <p role="alert" style={{ color: 'hsl(var(--destructive))', fontSize: '.78rem', marginTop: '.5rem', fontWeight: 700 }} data-testid="status-camera-submit-error">{error}</p>}
+    <button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} onClick={submit} data-testid="button-confirm-camera"><Check size={18} /> Confirm score</button>
+  </div>;
 }
 
 function History() {
